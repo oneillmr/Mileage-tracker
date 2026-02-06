@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Mileage">
+    <title>Mileage Tracker</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <!-- React -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
+            padding-bottom: 80px;
+        }
+        
+        .header {
+            background: white;
+            padding: 16px 20px;
+            border-bottom: 1px solid #e5e5e7;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .header .year-total {
+            font-size: 14px;
+            color: #6e6e73;
+            margin-top: 4px;
+        }
+        
+        .header .sync-status {
+            font-size: 12px;
+            color: #34c759;
+            margin-top: 4px;
+        }
+        
+        .header .sync-status.syncing {
+            color: #ff9500;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .auth-container {
+            max-width: 400px;
+            margin: 40px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .auth-container h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .auth-container p {
+            color: #6e6e73;
+            text-align: center;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        
+        .quick-add {
+            background: white;
+            margin: 16px;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .quick-add h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #1d1d1f;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            font-size: 16px;
+            font-family: inherit;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #0071e3;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 14px;
+            background: #0071e3;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .btn:active {
+            background: #0077ed;
+        }
+        
+        .btn:disabled {
+            background: #d2d2d7;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: #f5f5f7;
+            color: #1d1d1f;
+            margin-top: 8px;
+        }
+        
+        .btn-secondary:active {
+            background: #e8e8ed;
+        }
+        
+        .btn-danger {
+            background: #ff3b30;
+            margin-top: 8px;
+        }
+        
+        .btn-danger:active {
+            background: #ff453a;
+        }
+        
+        .summary {
+            background: white;
+            margin: 16px;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .summary h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+        
+        .category-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f5f5f7;
+        }
+        
+        .category-row:last-child {
+            border-bottom: none;
+        }
+        
+        .category-name {
+            font-size: 15px;
+            color: #1d1d1f;
+        }
+        
+        .category-miles {
+            font-size: 15px;
+            font-weight: 600;
+            color: #0071e3;
+        }
+        
+        .trips-list {
+            margin: 16px;
+        }
+        
+        .trip-card {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        
+        .trip-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 8px;
+        }
+        
+        .trip-date {
+            font-size: 14px;
+            color: #6e6e73;
+        }
+        
+        .trip-miles {
+            font-size: 20px;
+            font-weight: 600;
+            color: #0071e3;
+        }
+        
+        .trip-category {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #f5f5f7;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+        
+        .trip-notes {
+            color: #6e6e73;
+            font-size: 14px;
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .trip-delete {
+            width: 100%;
+            padding: 8px;
+            background: #ff3b30;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+        
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #e5e5e7;
+            display: flex;
+            padding: 8px;
+            box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+        }
+        
+        .nav-btn {
+            flex: 1;
+            padding: 8px;
+            background: none;
+            border: none;
+            font-size: 12px;
+            color: #6e6e73;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .nav-btn.active {
+            color: #0071e3;
+        }
+        
+        .nav-icon {
+            font-size: 24px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6e6e73;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .modal {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            margin: 20px;
+        }
+        
+        .modal h3 {
+            font-size: 20px;
+            margin-bottom: 16px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6e6e73;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // ⚠️ IMPORTANT: Replace these with your Firebase config
+        // Get this from Firebase Console > Project Settings > General > Your apps
+       const firebaseConfig = {
+  apiKey: "AIzaSyAn7fdDsBn17clZgsNWNoGb-m8DC3O9p_U",
+  authDomain: "mileage-tracker-e59f9.firebaseapp.com",
+  projectId: "mileage-tracker-e59f9",
+  storageBucket: "mileage-tracker-e59f9.firebasestorage.app",
+  messagingSenderId: "672772274393",
+  appId: "1:672772274393:web:d4fee832c2445bc638e6c8",
+  measurementId: "G-PBLTT195NJ"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        const CATEGORIES = ['Business', 'Medical', 'Charity', 'Moving', 'Other'];
+
+        function MileageApp() {
+            const [user, setUser] = React.useState(null);
+            const [loading, setLoading] = React.useState(true);
+            const [syncing, setSyncing] = React.useState(false);
+            const [trips, setTrips] = React.useState([]);
+            const [view, setView] = React.useState('add');
+            const [showExport, setShowExport] = React.useState(false);
+            const [formData, setFormData] = React.useState({
+                date: new Date().toISOString().split('T')[0],
+                startMileage: '',
+                endMileage: '',
+                miles: '',
+                category: CATEGORIES[0],
+                notes: ''
+            });
+
+            const currentYear = new Date().getFullYear();
+
+            // Listen for auth state changes
+            React.useEffect(() => {
+                const unsubscribe = auth.onAuthStateChanged((user) => {
+                    setUser(user);
+                    setLoading(false);
+                });
+                return unsubscribe;
+            }, []);
+
+            // Listen for trips data changes
+            React.useEffect(() => {
+                if (!user) {
+                    setTrips([]);
+                    return;
+                }
+
+                const unsubscribe = db.collection('users')
+                    .doc(user.uid)
+                    .collection('trips')
+                    .onSnapshot((snapshot) => {
+                        const tripsData = snapshot.docs.map(doc => ({
+                            id: doc.id,
+                            ...doc.data()
+                        }));
+                        setTrips(tripsData);
+                        setSyncing(false);
+                    });
+
+                return unsubscribe;
+            }, [user]);
+
+            const signInAnonymously = async () => {
+                try {
+                    setLoading(true);
+                    await auth.signInAnonymously();
+                } catch (error) {
+                    console.error('Sign in error:', error);
+                    alert('Failed to sign in. Please check your Firebase configuration.');
+                    setLoading(false);
+                }
+            };
+
+            const signOut = async () => {
+                try {
+                    await auth.signOut();
+                    setTrips([]);
+                } catch (error) {
+                    console.error('Sign out error:', error);
+                }
+            };
+
+            const handleInputChange = (e) => {
+                const { name, value } = e.target;
+                setFormData(prev => {
+                    const updated = { ...prev, [name]: value };
+                    
+                    if (name === 'startMileage' || name === 'endMileage') {
+                        const start = parseFloat(name === 'startMileage' ? value : prev.startMileage);
+                        const end = parseFloat(name === 'endMileage' ? value : prev.endMileage);
+                        if (start && end && end > start) {
+                            updated.miles = (end - start).toFixed(1);
+                        }
+                    }
+                    
+                    return updated;
+                });
+            };
+
+            const clearMiles = () => {
+                setFormData(prev => ({
+                    ...prev,
+                    miles: '',
+                    startMileage: '',
+                    endMileage: ''
+                }));
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                
+                if (!formData.miles || parseFloat(formData.miles) <= 0) {
+                    alert('Please enter valid miles');
+                    return;
+                }
+
+                setSyncing(true);
+
+                try {
+                    await db.collection('users')
+                        .doc(user.uid)
+                        .collection('trips')
+                        .add({
+                            date: formData.date,
+                            miles: parseFloat(formData.miles),
+                            category: formData.category,
+                            notes: formData.notes,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+
+                    setFormData({
+                        date: new Date().toISOString().split('T')[0],
+                        startMileage: '',
+                        endMileage: '',
+                        miles: '',
+                        category: CATEGORIES[0],
+                        notes: ''
+                    });
+                    
+                    setView('summary');
+                } catch (error) {
+                    console.error('Error adding trip:', error);
+                    alert('Failed to save trip. Please try again.');
+                    setSyncing(false);
+                }
+            };
+
+            const deleteTrip = async (tripId) => {
+                if (!confirm('Delete this trip?')) return;
+                
+                setSyncing(true);
+                try {
+                    await db.collection('users')
+                        .doc(user.uid)
+                        .collection('trips')
+                        .doc(tripId)
+                        .delete();
+                } catch (error) {
+                    console.error('Error deleting trip:', error);
+                    alert('Failed to delete trip. Please try again.');
+                    setSyncing(false);
+                }
+            };
+
+            const exportData = () => {
+                const yearTrips = trips.filter(trip => 
+                    new Date(trip.date).getFullYear() === currentYear
+                );
+
+                const csv = [
+                    ['Date', 'Miles', 'Category', 'Notes'],
+                    ...yearTrips.map(trip => [
+                        trip.date,
+                        trip.miles,
+                        trip.category,
+                        trip.notes || ''
+                    ])
+                ].map(row => row.join(',')).join('\n');
+
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `mileage-${currentYear}.csv`;
+                a.click();
+                setShowExport(false);
+            };
+
+            const yearTrips = trips
+                .filter(trip => new Date(trip.date).getFullYear() === currentYear)
+                .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            const totalMiles = yearTrips.reduce((sum, trip) => sum + trip.miles, 0);
+
+            const categorySummary = CATEGORIES.map(category => ({
+                category,
+                miles: yearTrips
+                    .filter(trip => trip.category === category)
+                    .reduce((sum, trip) => sum + trip.miles, 0)
+            })).filter(item => item.miles > 0);
+
+            if (loading) {
+                return (
+                    <div className="loading">
+                        <div style={{fontSize: '48px', marginBottom: '16px'}}>🚗</div>
+                        <div>Loading...</div>
+                    </div>
+                );
+            }
+
+            if (!user) {
+                return (
+                    <div className="auth-container">
+                        <h2>🚗 Mileage Tracker</h2>
+                        <p>Track your business mileage across all your devices. Your data syncs automatically via Firebase.</p>
+                        <button className="btn" onClick={signInAnonymously}>
+                            Start Tracking
+                        </button>
+                        <p style={{marginTop: '20px', fontSize: '12px'}}>
+                            This app uses anonymous authentication. Your data is private and secure.
+                        </p>
+                    </div>
+                );
+            }
+
+            return (
+                <>
+                    <div className="header">
+                        <div className="container">
+                            <h1>Mileage Tracker</h1>
+                            <div className="year-total">
+                                {currentYear} Total: {totalMiles.toFixed(1)} miles
+                            </div>
+                            <div className={`sync-status ${syncing ? 'syncing' : ''}`}>
+                                {syncing ? '⏳ Syncing...' : '✓ Synced'}
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="container">
+                        {view === 'add' && (
+                            <div className="quick-add">
+                                <h2>Add Trip</h2>
+                                <form onSubmit={handleSubmit}>
+                                    <div className="form-group">
+                                        <label>Date</label>
+                                        <input
+                                            type="date"
+                                            name="date"
+                                            value={formData.date}
+                                            onChange={handleInputChange}
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="form-row">
+                                        <div className="form-group">
+                                            <label>Start Odometer</label>
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                name="startMileage"
+                                                value={formData.startMileage}
+                                                onChange={handleInputChange}
+                                                placeholder="Optional"
+                                            />
+                                        </div>
+                                        <div className="form-group">
+                                            <label>End Odometer</label>
+                                            <input
+                                                type="number"
+                                                step="0.1"
+                                                name="endMileage"
+                                                value={formData.endMileage}
+                                                onChange={handleInputChange}
+                                                placeholder="Optional"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Trip Miles</label>
+                                        <input
+                                            type="number"
+                                            step="0.1"
+                                            name="miles"
+                                            value={formData.miles}
+                                            onChange={handleInputChange}
+                                            placeholder="Enter directly or use odometer"
+                                            required
+                                        />
+                                        {formData.miles && (
+                                            <button
+                                                type="button"
+                                                className="btn btn-secondary"
+                                                onClick={clearMiles}
+                                            >
+                                                Clear
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Category</label>
+                                        <select
+                                            name="category"
+                                            value={formData.category}
+                                            onChange={handleInputChange}
+                                        >
+                                            {CATEGORIES.map(cat => (
+                                                <option key={cat} value={cat}>{cat}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div className="form-group">
+                                        <label>Notes (Optional)</label>
+                                        <textarea
+                                            name="notes"
+                                            value={formData.notes}
+                                            onChange={handleInputChange}
+                                            rows="2"
+                                            placeholder="e.g., Client meeting, Doctor appointment"
+                                        />
+                                    </div>
+
+                                    <button type="submit" className="btn" disabled={syncing}>
+                                        {syncing ? 'Saving...' : 'Add Trip'}
+                                    </button>
+                                    
+                                    <button type="button" className="btn btn-danger" onClick={signOut}>
+                                        Sign Out
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+
+                        {view === 'summary' && (
+                            <>
+                                <div className="summary">
+                                    <h2>{currentYear} Summary</h2>
+                                    {categorySummary.map(({ category, miles }) => (
+                                        <div key={category} className="category-row">
+                                            <div className="category-name">{category}</div>
+                                            <div className="category-miles">{miles.toFixed(1)} mi</div>
+                                        </div>
+                                    ))}
+                                    {categorySummary.length === 0 && (
+                                        <div className="empty-state">
+                                            <div className="empty-state-icon">📊</div>
+                                            <p>No trips logged yet</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {yearTrips.length > 0 && (
+                                    <div className="quick-add">
+                                        <button className="btn" onClick={() => setShowExport(true)}>
+                                            Export {currentYear} Data (CSV)
+                                        </button>
+                                        <button className="btn btn-danger" onClick={signOut}>
+                                            Sign Out
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {view === 'trips' && (
+                            <>
+                                <div className="trips-list">
+                                    {yearTrips.length === 0 ? (
+                                        <div className="empty-state">
+                                            <div className="empty-state-icon">🚗</div>
+                                            <p>No trips logged yet</p>
+                                        </div>
+                                    ) : (
+                                        yearTrips.map(trip => (
+                                            <div key={trip.id} className="trip-card">
+                                                <div className="trip-header">
+                                                    <div className="trip-date">
+                                                        {new Date(trip.date).toLocaleDateString()}
+                                                    </div>
+                                                    <div className="trip-miles">{trip.miles.toFixed(1)} mi</div>
+                                                </div>
+                                                <div className="trip-category">{trip.category}</div>
+                                                {trip.notes && (
+                                                    <div className="trip-notes">{trip.notes}</div>
+                                                )}
+                                                <button 
+                                                    className="trip-delete"
+                                                    onClick={() => deleteTrip(trip.id)}
+                                                    disabled={syncing}
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                                <div className="quick-add">
+                                    <button className="btn btn-danger" onClick={signOut}>
+                                        Sign Out
+                                    </button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
+                    <div className="bottom-nav">
+                        <button
+                            className={`nav-btn ${view === 'add' ? 'active' : ''}`}
+                            onClick={() => setView('add')}
+                        >
+                            <div className="nav-icon">➕</div>
+                            <div>Add Trip</div>
+                        </button>
+                        <button
+                            className={`nav-btn ${view === 'summary' ? 'active' : ''}`}
+                            onClick={() => setView('summary')}
+                        >
+                            <div className="nav-icon">📊</div>
+                            <div>Summary</div>
+                        </button>
+                        <button
+                            className={`nav-btn ${view === 'trips' ? 'active' : ''}`}
+                            onClick={() => setView('trips')}
+                        >
+                            <div className="nav-icon">📋</div>
+                            <div>All Trips</div>
+                        </button>
+                    </div>
+
+                    {showExport && (
+                        <div className="modal-overlay" onClick={() => setShowExport(false)}>
+                            <div className="modal" onClick={e => e.stopPropagation()}>
+                                <h3>Export {currentYear} Data</h3>
+                                <p style={{marginBottom: '16px', color: '#6e6e73'}}>
+                                    Download a CSV file with all your {currentYear} trips for tax records.
+                                </p>
+                                <button className="btn" onClick={exportData}>
+                                    Download CSV
+                                </button>
+                                <button 
+                                    className="btn btn-secondary" 
+                                    onClick={() => setShowExport(false)}
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        }
+
+        ReactDOM.render(<MileageApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>
