@@ -428,16 +428,52 @@
 
             const currentYear = new Date().getFullYear();
 
-            // Listen for auth state changes
+            // Listen for auth state changes — auto sign in anonymously if no session exists
+            // This prevents a new anonymous user being created on every visit
             React.useEffect(() => {
-                const unsubscribe = auth.onAuthStateChanged((user) => {
-                    setUser(user);
-                    setLoading(false);
+                const unsubscribe = auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        // Existing session restored from localStorage — reuse it
+                        setUser(user);
+                        setLoading(false);
+                    } else {
+                        // No session found — create one automatically (silent, no button needed)
+                        try {
+                            await auth.signInAnonymously();
+                            // onAuthStateChanged will fire again with the new user
+                        } catch (error) {
+                            console.error('Auto sign in error:', error);
+                            setLoading(false);
+                        }
+                    }
                 });
                 return unsubscribe;
             }, []);
 
-            // Load active trip in progress from Firestore
+            // Load active trip in progress — check localStorage first (instant), then Firestore
+            React.useEffect(() => {
+                // Always check localStorage first regardless of auth state
+                const local = localStorage.getItem('activeTrip');
+                if (local) {
+                    try {
+                        const data = JSON.parse(local);
+                        if (data.startMileage) {
+                            setFormData(prev => ({
+                                ...prev,
+                                date: data.date || prev.date,
+                                startMileage: data.startMileage,
+                                category: data.category || CATEGORIES[0],
+                                notes: data.notes || ''
+                            }));
+                            setActiveTripInProgress(true);
+                        }
+                    } catch (e) {
+                        localStorage.removeItem('activeTrip');
+                    }
+                }
+            }, []);
+
+            // Sync active trip from Firestore when user is available (cross-device)
             React.useEffect(() => {
                 if (!user) return;
                 db.collection('users').doc(user.uid).collection('activeTrip').doc('current')
@@ -445,17 +481,21 @@
                     .then(doc => {
                         if (doc.exists) {
                             const data = doc.data();
-                            setFormData(prev => ({
-                                ...prev,
-                                date: data.date || prev.date,
-                                startMileage: data.startMileage || '',
-                                category: data.category || CATEGORIES[0],
-                                notes: data.notes || ''
-                            }));
-                            setActiveTripInProgress(true);
+                            if (data.startMileage) {
+                                setFormData(prev => ({
+                                    ...prev,
+                                    date: data.date || prev.date,
+                                    startMileage: data.startMileage,
+                                    category: data.category || CATEGORIES[0],
+                                    notes: data.notes || ''
+                                }));
+                                setActiveTripInProgress(true);
+                                // Keep localStorage in sync
+                                localStorage.setItem('activeTrip', JSON.stringify(data));
+                            }
                         }
                     })
-                    .catch(err => console.error('Error loading active trip:', err));
+                    .catch(err => console.error('Error loading active trip from Firestore:', err));
             }, [user]);
 
             // Listen for trips data changes
@@ -480,17 +520,6 @@
                 return unsubscribe;
             }, [user]);
 
-            const signInAnonymously = async () => {
-                try {
-                    setLoading(true);
-                    await auth.signInAnonymously();
-                } catch (error) {
-                    console.error('Sign in error:', error);
-                    alert('Failed to sign in. Please check your Firebase configuration.');
-                    setLoading(false);
-                }
-            };
-
             const signOut = async () => {
                 try {
                     await auth.signOut();
@@ -500,8 +529,17 @@
                 }
             };
 
-            const saveActiveTripToFirestore = async (data) => {
-                if (!user || !data.startMileage) return;
+            const saveActiveTrip = async (data) => {
+                if (!data.startMileage) return;
+                // Save to localStorage immediately as a fast backup
+                localStorage.setItem('activeTrip', JSON.stringify({
+                    startMileage: data.startMileage,
+                    date: data.date,
+                    category: data.category,
+                    notes: data.notes || ''
+                }));
+                // Also save to Firestore for cross-device sync
+                if (!user) return;
                 try {
                     await db.collection('users').doc(user.uid).collection('activeTrip').doc('current').set({
                         startMileage: data.startMileage,
@@ -516,11 +554,13 @@
                 }
             };
 
-            const clearActiveTripFromFirestore = async () => {
+            const clearActiveTrip = async () => {
+                // Clear localStorage backup
+                localStorage.removeItem('activeTrip');
+                setActiveTripInProgress(false);
                 if (!user) return;
                 try {
                     await db.collection('users').doc(user.uid).collection('activeTrip').doc('current').delete();
-                    setActiveTripInProgress(false);
                 } catch (err) {
                     console.error('Error clearing active trip:', err);
                 }
@@ -539,9 +579,9 @@
                         }
                     }
 
-                    // Persist start mileage to Firestore so it survives page reloads
+                    // Persist start mileage so it survives page reloads
                     if (name === 'startMileage' && value) {
-                        saveActiveTripToFirestore({ ...prev, startMileage: value });
+                        saveActiveTrip({ ...prev, startMileage: value });
                     }
                     
                     return updated;
@@ -555,7 +595,7 @@
                     startMileage: '',
                     endMileage: ''
                 }));
-                clearActiveTripFromFirestore();
+                clearActiveTrip();
             };
 
             const handleSubmit = async (e) => {
@@ -590,7 +630,7 @@
                     });
 
                     // Clear the persisted active trip now that it's been saved
-                    await clearActiveTripFromFirestore();
+                    await clearActiveTrip();
                     
                     setView('summary');
                 } catch (error) {
@@ -659,21 +699,6 @@
                     <div className="loading">
                         <div style={{fontSize: '48px', marginBottom: '16px'}}>🚗</div>
                         <div>Loading...</div>
-                    </div>
-                );
-            }
-
-            if (!user) {
-                return (
-                    <div className="auth-container">
-                        <h2>🚗 Mileage Tracker</h2>
-                        <p>Track your business mileage across all your devices. Your data syncs automatically via Firebase.</p>
-                        <button className="btn" onClick={signInAnonymously}>
-                            Start Tracking
-                        </button>
-                        <p style={{marginTop: '20px', fontSize: '12px'}}>
-                            This app uses anonymous authentication. Your data is private and secure.
-                        </p>
                     </div>
                 );
             }
