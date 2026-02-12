@@ -403,6 +403,10 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
+        // Persist auth session in localStorage so anonymous users keep the same
+        // UID across page reloads and return visits instead of creating a new one each time
+        auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
         const CATEGORIES = ['Business', 'Medical', 'Charity', 'Moving', 'Other'];
 
         function MileageApp() {
